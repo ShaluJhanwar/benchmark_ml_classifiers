@@ -1,0 +1,216 @@
+#####################################
+#README: how to perform benchmarking
+#####################################
+
+################
+#Goal and Dataset
+################
+As the goal of our enhancer prediction method is to make such a generalizable model which can be able to capture experimentally characterized enhacners signals from various resources in a cell-type/tissue-type independent manner.
+
+For that purpose, I have following experimentally characterized enahcners from different resouces for testing purpose in K562 cell-line (independent to training dataset):
+
+1. Positive:
+	FANTOM: Expressed in atleast 1: /users/so/sjhanwar/ML_tool/Resources/ValidationDataset/FANTOM-eRNA/K562_FANTOM_atleast_one_expressed_matrix.txt
+	VISTA: All tissues: positive: /users/so/sjhanwar/ML_tool/Resources/ValidationDataset/VISTA/vista_Human_Positive_enhancers.txt
+	Kwasnieski(27% validated enhancers): /users/so/sjhanwar/ML_tool/Resources/Kwasnieski_paper/479_Positive_class 
+
+2. Negative:
+/users/so/sjhanwar/ML_tool/Resources/Kwasnieski_paper/1621_Negative_class
+
+
+################
+#Create training matrix
+################
+In total, there are (479, 800, 1113) 4013 enhancers from different resources: 2392 True Positive and 1621 True Negative
+/users/so/sjhanwar/ML_tool/Resources/Kwasnieski_paper/Kwasnieski_VISTA_FANTOM_test_set_my_algorithm/matrix.txt
+
+
+################
+#Compare the performance of methods/tools on TP and TN
+################
+Now I saw the performance of all the softwares listed for the benchmarking purpose: we consider F1-score and Accuracy for the measurement.
+
+#sjhanwar[CRG_Lab_Stephan_Ossowski]@ant-login9[~/ML_tool/Resources/Kwasnieski_paper]
+17:25:06 $ perl ~/ML_tool/bin/Kwesneski_data_ppv_score.pl --chrSize 479_Positive_class_VISTA_FANTOMeRNA --negFile 1621_Negative_class --l AlgorithmList.txt --o ~/ML_tool/Resources/Kwasnieski_paper/479_Positive_class_VISTA_FANTOMeRNA_outFolder
+
+sjhanwar[CRG_Lab_Stephan_Ossowski]@ant-login9[~/ML_tool/Resources/Kwasnieski_paper]
+17:26:10 $  python ~/ML_tool/bin/Kwasnieski_calculate_measures.py -d  ~/ML_tool/Resources/Kwasnieski_paper/479_Positive_class_VISTA_FANTOMeRNA_outFolder/matrix.txt -c "1"
+ 
+#Note I changed the filename of ~/ML_tool/Resources/Kwasnieski_paper/479_Positive_class_VISTA_FANTOMeRNA_outFolder/matrix.txt to “matrix_for_ppv_calculate.txt” for gitRepos folder
+
+/users/so/sjhanwar/ML_tool/Resources/Kwasnieski_paper/479_Positive_class_VISTA_FANTOMeRNA_outFolder/479_Positive_class_VISTA_FANTOMeRNA_benchmark_result.txt
+
+################
+#Conclusion: 
+################
+Although in term of accuracy and F1, we are comparable to other softwares and we could proceed as it is, but I was wondering what are we missing in the model, so that we are unable to capture the signals. 
+
+So I looked into the data: Among all the 4013 data profiles, a set of 1410 was having no signals for important histone modifications:
+
+#_sjhanwar[CRG_Lab_Stephan_Ossowski]@ant-login9[~/ML_tool/Resources/Kwasnieski_paper/Kwasnieski_VISTA_FANTOM_test_set_my_algorithm/Frequency_pattern_calculation]
+20:58:22 $  perl -e 'open(I,"2603_list");@data=<I>;close(I);%hash=();foreach $l(@data){chomp($l);if(!$hash{$l}){$hash{$l}= 1;}}while(<>){chomp;$_=~/([^\t]+)\t/;if($hash{$1}){next;}else{print "$_\n";}}' ~/ML_tool/Resources/Kwasnieski_paper/Kwasnieski_VISTA_FANTOM_test_set_my_algorithm/Frequency_pattern_calculation/CpGIsland_GC_K562_matrix.txt > 1411_CpGIsland_GC_K562_matrix.txt
+
+################
+#Further analysis based on conclusions: 
+################
+Further the question was then are there some genomic features, important for their identification? Although TSS distance was performing well along with histones and was a powerful feature in our case, specially with promoters in the training dataset. But I wanted to check if I will incorporate additional genomic features, would they be able to increase the performance. So I performed following model trials to answer this question:
+
+################
+#Total set of features
+
+Now the total feature space includes:
+
+#Epigenomic: 
+Dnase 
+H3k27ac
+H3k27me3 
+H3k36me3 
+H3k4me1 
+H3k4me1_H3K4me3 
+H3k4me3 
+P300 
+
+#Genomic
+tss_Dist 
+CpG_Island 
+GC_content 
+TFBS motif 
+TATA box 
+LDT_sdtf_CRF 
+Conservation 
+TFBS_conservation_score
+
+################
+Some important terms used in analysis:
+
+Epigenomic: All epigenomic features
+Genome: All genomic features
+Model combine: Epigenome model + Genome model
+Feature combine: Epigenome + Genome features
+
+################
+#Different model trials combining genomic and epigenetic features and ensemble methods
+################
+
+################
+1. Epigenome only continuous:
+	#sjhanwar[CRG_Lab_Stephan_Ossowski]@ant-login9[~/ML_tool/Resources/Improvements_2nd_round/Kwasneski_testData/Continuous_4014_Kwasneski]
+	17:03:01 $  time python ~/ML_tool/bin/subroutine_testIndependentDataset.py -d ~/ML_tool/Resources/Improvements_2nd_round/1296_HepG2_832_K562_continuous_matrix_genomics_epigenomics.txt -o ~/ML_tool/Resources/Improvements_2nd_round/Kwasneski_testData/Continuous_4014_Kwasneski -c "1" -C "2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17" -t ~/ML_tool/Resources/Improvements_2nd_round/Kwasneski_testData/Continuous_4014_Kwasneski/4014_All_epigenomic_continuous.txt -m ~/ML_tool/Resources/Improvements_2nd_round/Continuous_All_epigenome_noTSS_feature_test.pkl 
+
+Model: /users/so/sjhanwar/ML_tool/Resources/Improvements_2nd_round/Continuous_All_epigenome_noTSS_feature_test.pkl
+ 
+Conclusion: Too many false negatives. Might be as epigenomic feature data is not present for many of them
+
+################
+2. Genome only continuous:
+	sjhanwar[CRG_Lab_Stephan_Ossowski]@ant-login9[~/ML_tool/Resources/Improvements_2nd_round/Kwasneski_testData/Continuous_4014_Kwasneski]
+17:07:45 $  time python ~/ML_tool/bin/subroutine_testIndependentDataset.py -d ~/ML_tool/Resources/Improvements_2nd_round/1296_HepG2_832_K562_continuous_matrix_genomics_epigenomics.txt -o ~/ML_tool/Resources/Improvements_2nd_round/Kwasneski_testData/Continuous_4014_Kwasneski -c "1" -C "2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17" -t ~/ML_tool/Resources/Improvements_2nd_round/Kwasneski_testData/Continuous_4014_Kwasneski/4014_Only_genomic_continuous.txt -m ~/ML_tool/Resources/Improvements_2nd_round/Continuous_Genome_test.pkl 
+
+Model: /users/so/sjhanwar/ML_tool/Resources/Improvements_2nd_round/Continuous_Genome_test.pkl
+
+Conclusion: Very good True positive but false positive also increased at the same time
+
+################
+3. Genome without TSS:
+	sjhanwar[CRG_Lab_Stephan_Ossowski]@ant-login9[~/ML_tool/Resources/Improvements_2nd_round/Kwasneski_testData/Continuous_4014_Kwasneski]
+17:19:39 $  time python ~/ML_tool/bin/subroutine_testIndependentDataset.py -d ~/ML_tool/Resources/Improvements_2nd_round/1296_HepG2_832_K562_continuous_matrix_genomics_epigenomics.txt -o ~/ML_tool/Resources/Improvements_2nd_round/Kwasneski_testData/Continuous_4014_Kwasneski -c "1" -C "2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17" -t ~/ML_tool/Resources/Improvements_2nd_round/Kwasneski_testData/Continuous_4014_Kwasneski/4014_Only_genomic_continuous_withoutTSS.txt -m ~/ML_tool/Resources/Improvements_2nd_round/Three_models_Genome_Epigenome_TSS/continuous_Genome_without_TSS_test.pkl 
+
+
+Model: /users/so/sjhanwar/ML_tool/Resources/Improvements_2nd_round/Kwasneski_testData/Continuous_4014_Kwasneski/4014_Only_genomic_continuous_withoutTSS.txt
+
+Conclusion: Performing similar to "Only epigenome" model, meaning TSS_dist is a powerful factor. Let's see how TSS_dist alone is able to predict.
+
+################
+4. Only TSS_dist:
+	sjhanwar[CRG_Lab_Stephan_Ossowski]@ant-login9[~/ML_tool/Resources/Improvements_2nd_round/Kwasneski_testData/Continuous_4014_Kwasneski]
+17:30:38 $  time python ~/ML_tool/bin/subroutine_testIndependentDataset.py -d ~/ML_tool/Resources/Improvements_2nd_round/1296_HepG2_832_K562_continuous_matrix_genomics_epigenomics.txt -o  ~/ML_tool/Resources/Improvements_2nd_round/Three_models_Genome_Epigenome_TSS -c "1" -C "2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17" -t ~/ML_tool/Resources/Improvements_2nd_round/Kwasneski_testData/Continuous_4014_Kwasneski/4014_Only_genomic_continuous.txt -m ~/ML_tool/Resources/Improvements_2nd_round/Three_models_Genome_Epigenome_TSS/continuous_Only_TSS_test.pkl 
+
+Model: /users/so/sjhanwar/ML_tool/Resources/Improvements_2nd_round/Three_models_Genome_Epigenome_TSS/continuous_Only_TSS_test.pkl 
+
+Conclusion: Quite powerful alone
+
+
+################
+5. Model combine (Continuous): I combined the model of Genome + Epigenome and form one model
+	Use this program to make a combine model ~/ML_tool/bin/RF.py
+
+sjhanwar[CRG_Lab_Stephan_Ossowski]@ant-login9[~/ML_tool/Resources/Improvements_2nd_round/Kwasneski_testData/Continuous_4014_Kwasneski]
+17:41:09 $  time python ~/ML_tool/bin/subroutine_testIndependentDataset.py -d ~/ML_tool/Resources/Improvements_2nd_round/1296_HepG2_832_K562_continuous_matrix_genomics_epigenomics.txt -o  ~/ML_tool/Resources/Improvements_2nd_round/Three_models_Genome_Epigenome_TSS -c "1" -C "2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17" -t ~/ML_tool/Resources/Improvements_2nd_round/Kwasneski_testData/Continuous_4014_Kwasneski/matrix.txt -m ~/ML_tool/Resources/Improvements_2nd_round/combine_continuous_Epigenome_Genome_model.pkl 
+
+Model: /users/so/sjhanwar/ML_tool/Resources/Improvements_2nd_round/combine_continuous_Epigenome_Genome_model.pkl 
+
+Conclusion: Quite high positive predictive power, also FP decrease compared to “Genome Only” model. For me, this is performing quite well.
+
+################
+6. Feature combine continuous:
+	sjhanwar[CRG_Lab_Stephan_Ossowski]@ant-login9[~/ML_tool/Resources/Improvements_2nd_round]
+17:49:42 $  time python ~/ML_tool/bin/subroutine_testIndependentDataset.py -d ~/ML_tool/Resources/Improvements_2nd_round/1296_HepG2_832_K562_continuous_matrix_genomics_epigenomics.txt -o  ~/ML_tool/Resources/Improvements_2nd_round/Three_models_Genome_Epigenome_TSS -c "1" -C "2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17" -t ~/ML_tool/Resources/Improvements_2nd_round/Kwasneski_testData/Continuous_4014_Kwasneski/matrix.txt -m ~/ML_tool/Resources/Improvements_2nd_round/Continuous_All_epigenome_genome_feature_test.pkl 
+
+Model: /users/so/sjhanwar/ML_tool/Resources/Improvements_2nd_round/Continuous_All_epigenome_genome_feature_test.pkl 
+
+################
+7. Model combine (Epigenome + Genome + TSS): 
+	As TSS was having a very good predictive power, so I wanted to check how is it behaving in case of the all the three models combined. So I tried it
+
+	sjhanwar[CRG_Lab_Stephan_Ossowski]@ant-login9[~/ML_tool/Resources/Improvements_2nd_round]
+	Use /users/so/sjhanwar/ML_tool/bin/RF_three_models_combine.py
+
+17:51:54 $  time python ~/ML_tool/bin/subroutine_testIndependentDataset.py -d ~/ML_tool/Resources/Improvements_2nd_round/1296_HepG2_832_K562_continuous_matrix_genomics_epigenomics.txt -o  ~/ML_tool/Resources/Improvements_2nd_round/Three_models_Genome_Epigenome_TSS -c "1" -C "2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17" -t ~/ML_tool/Resources/Improvements_2nd_round/Kwasneski_testData/Continuous_4014_Kwasneski/matrix.txt -m ~/ML_tool/Resources/Improvements_2nd_round/Three_models_Genome_Epigenome_TSS/combined_continuous_Epigenome_Genome_TSS_model.pkl 
+
+Model: /users/so/sjhanwar/ML_tool/Resources/Improvements_2nd_round/Three_models_Genome_Epigenome_TSS/combined_continuous_Epigenome_Genome_TSS_model.pkl
+
+################
+See how the performance is behaving with other classifiers:
+
+8. GradiantBoost (All features continuous): But using only Epigenomic + TSS data only (comparing the algorithm with the current selected model)
+
+	sjhanwar[CRG_Lab_Stephan_Ossowski]@ant-login7[~/ML_tool/Resources/Improvements_2nd_round/GradiantBosst_Adaboost_Epigenome_TSS_model]
+20:04:29 $  time python ~/ML_tool/bin/subroutine_testIndependentDataset.py -d ~/ML_tool/Resources/Improvements_2nd_round/1296_HepG2_832_K562_continuous_matrix_genomics_epigenomics.txt -o ~/ML_tool/Resources/Improvements_2nd_round/GradiantBosst_Adaboost_Epigenome_TSS_model -c "1" -C "2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17" -t ~/ML_tool/Resources/Improvements_2nd_round/Kwasneski_testData/Continuous_4014_Kwasneski/4014_All_epigenome_plus_TSS.txt -m ~/ML_tool/Resources/Improvements_2nd_round/GradiantBosst_Adaboost_Epigenome_TSS_model/Continuous_gradiant_all_epigenome_with_TSS_feature_test.pkl
+
+Model: ~/ML_tool/Resources/Improvements_2nd_round/GradiantBosst_Adaboost_Epigenome_TSS_model/Continuous_gradiant_all_epigenome_with_TSS_feature_test.pkl
+
+################
+9. Before proceeding to the Ensemble approach, I tried 2 more things:
+UnBalanced class trials:
+
+	a) Unbalanced class examples (More negatives and less positives): In this case, I am loosing the power to predict true positives and not increasing much towards identification of true negatives
+
+	b) Threshold cutoff: I saw the default threshold (0.5) really performs the best in case of "Balanced class"
+
+After confirming these, I moved to the Ensemble voting approach: 
+
+################
+10. Now I tried Ensemble voting approach too to test if I use different algorithms and use the voting schemes, then can I get good predictions:
+
+	I used three methods:
+	SVM, RF, Adaboost: 
+
+	use ~/ML_tool/bin/Ensemble_RF_SVM_adaboost.py
+	
+	Hard voting:
+sjhanwar[CRG_Lab_Stephan_Ossowski]@ant-login7[~/ML_tool/Resources/Improvements_2nd_round/threshold_RF_Ensemble_voting_classifiers]
+20:36:27 $ python ~/ML_tool/bin/Ensemble_subroutine_testIndependentDataset.py -d ~/ML_tool/Resources/Improvements_2nd_round/1296_HepG2_832_K562_continuous_matrix_genomics_epigenomics.txt -o ~/ML_tool/Resources/Improvements_2nd_round/threshold_RF_Ensemble_voting_classifiers -c "1" -C "2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17" -t ~/ML_tool/Resources/Improvements_2nd_round/Kwasneski_testData/Continuous_4014_Kwasneski/matrix.txt -m ~/ML_tool/Resources/Improvements_2nd_round/threshold_RF_Ensemble_voting_classifiers/Hard_voting_Ensembled_Epigenome_Genome_model.pkl
+/users/so/sjhanwar/ML_tool/Resources/Improvements_2nd_round/threshold_RF_Ensemble_voting_classifiers/Hard_voting_Ensembled_Epigenome_Genome_model.pkl
+
+	Soft voting:
+sjhanwar[CRG_Lab_Stephan_Ossowski]@ant-login7[~/ML_tool/Resources/Improvements_2nd_round/threshold_RF_Ensemble_voting_classifiers]
+20:36:27 $ python ~/ML_tool/bin/Ensemble_subroutine_testIndependentDataset.py -d ~/ML_tool/Resources/Improvements_2nd_round/1296_HepG2_832_K562_continuous_matrix_genomics_epigenomics.txt -o ~/ML_tool/Resources/Improvements_2nd_round/threshold_RF_Ensemble_voting_classifiers -c "1" -C "2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17" -t ~/ML_tool/Resources/Improvements_2nd_round/Kwasneski_testData/Continuous_4014_Kwasneski/matrix.txt -m ~/ML_tool/Resources/Improvements_2nd_round/threshold_RF_Ensemble_voting_classifiers/Soft_voting_Ensembled_Epigenome_Genome_model.pkl
+/users/so/sjhanwar/ML_tool/Resources/Improvements_2nd_round/threshold_RF_Ensemble_voting_classifiers/Soft_voting_Ensembled_Epigenome_Genome_model.pkl
+
+
+
+ 
+
+
+
+
+
+
+
+
+
+
+
+
+ 
+
